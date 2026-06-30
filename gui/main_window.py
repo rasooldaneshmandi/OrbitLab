@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 from orbit.tracker import Tracker
 from gui.doppler_plot import DopplerPlot
+from gui.earth_view import EarthView
 
 
 class MainWindow(QMainWindow):
@@ -33,10 +34,10 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        earth_view = self.create_earth_view()
+        self.earth_view = EarthView()
         telemetry_panel = self.create_telemetry_panel()
 
-        splitter.addWidget(earth_view)
+        splitter.addWidget(self.earth_view)
         splitter.addWidget(telemetry_panel)
         splitter.setSizes([650, 350])
 
@@ -54,42 +55,6 @@ class MainWindow(QMainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_display)
         self.timer.start(1000)
-
-    def create_earth_view(self):
-        box = QGroupBox("Ground Station View")
-        layout = QVBoxLayout()
-
-        self.view_label = QLabel(
-            """
-                 🛰  ISS
-
-
-                      |
-                      |
-                      |
-        -------------------------------- Horizon
-
-                  Nürnberg Ground Station
-            """
-        )
-
-        self.view_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.view_label.setStyleSheet(
-            """
-            QLabel {
-                font-size: 22px;
-                background-color: #111827;
-                color: #E5E7EB;
-                border-radius: 8px;
-                padding: 20px;
-            }
-            """
-        )
-
-        layout.addWidget(self.view_label)
-        box.setLayout(layout)
-
-        return box
 
     def create_telemetry_panel(self):
         box = QGroupBox("Telemetry")
@@ -143,5 +108,6 @@ class MainWindow(QMainWindow):
         self.visibility_label.setText(state.visibility)
 
         self.doppler_plot.update_plot(state.doppler_khz)
+        self.earth_view.update_satellite(state.azimuth_deg)
 
         self.tracker.step()
