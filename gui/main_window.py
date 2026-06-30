@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 
 from orbit.tracker import Tracker
+from gui.doppler_plot import DopplerPlot
 
 
 class MainWindow(QMainWindow):
@@ -17,7 +18,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("OrbitLab - Live Satellite Tracking Console")
-        self.resize(1100, 700)
+        self.resize(1100, 800)
 
         self.tracker = Tracker()
 
@@ -39,8 +40,11 @@ class MainWindow(QMainWindow):
         splitter.addWidget(telemetry_panel)
         splitter.setSizes([650, 350])
 
+        self.doppler_plot = DopplerPlot()
+
         main_layout.addWidget(title)
         main_layout.addWidget(splitter)
+        main_layout.addWidget(self.doppler_plot)
 
         central.setLayout(main_layout)
         self.setCentralWidget(central)
@@ -137,5 +141,7 @@ class MainWindow(QMainWindow):
         self.range_rate_label.setText(f"{state.range_rate_m_s:.2f} m/s")
         self.doppler_label.setText(f"{state.doppler_khz:.2f} kHz")
         self.visibility_label.setText(state.visibility)
+
+        self.doppler_plot.update_plot(state.doppler_khz)
 
         self.tracker.step()
