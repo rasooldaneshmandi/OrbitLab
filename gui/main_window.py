@@ -3,17 +3,13 @@ from PyQt6.QtWidgets import (
     QWidget,
     QLabel,
     QVBoxLayout,
-    QHBoxLayout,
     QGroupBox,
     QFormLayout,
     QSplitter,
 )
 from PyQt6.QtCore import Qt
 
-from orbit.satellite import Satellite
-from geometry.calculator import GeometryCalculator
-from geometry.doppler import DopplerCalculator
-from geometry.visibility import VisibilityChecker
+from orbit.tracker import Tracker
 
 
 class MainWindow(QMainWindow):
@@ -23,30 +19,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("OrbitLab - Satellite Tracking Console")
         self.resize(1100, 700)
 
-        self.iss = Satellite("ISS (ZARYA)")
+        self.tracker = Tracker()
 
-        observer = self.iss.observer(
-            lat_deg=49.4521,
-            lon_deg=11.0767,
-            elevation_m=300,
+        state = self.tracker.state_at(
+            2026,
+            6,
+            23,
+            3,
+            0,
         )
-
-        t = self.iss.time_utc(2026, 6, 23, 3, 0)
-        t_next = self.iss.time_utc(2026, 6, 23, 3, 1)
-
-        topo = self.iss.topocentric(observer, t)
-        topo_next = self.iss.topocentric(observer, t_next)
-
-        elevation = GeometryCalculator.elevation_deg(topo)
-        azimuth = GeometryCalculator.azimuth_deg(topo)
-        range_km = GeometryCalculator.range_km(topo)
-
-        d1 = GeometryCalculator.distance_m(topo)
-        d2 = GeometryCalculator.distance_m(topo_next)
-
-        range_rate = GeometryCalculator.range_rate_m_s(d1, d2, 60)
-        doppler = DopplerCalculator.compute_khz(range_rate, 437e6)
-        visibility = VisibilityChecker.status(elevation)
 
         central = QWidget()
         main_layout = QVBoxLayout()
@@ -60,14 +41,7 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         earth_view = self.create_earth_view()
-        telemetry_panel = self.create_telemetry_panel(
-            elevation,
-            azimuth,
-            range_km,
-            range_rate,
-            doppler,
-            visibility,
-        )
+        telemetry_panel = self.create_telemetry_panel(state)
 
         splitter.addWidget(earth_view)
         splitter.addWidget(telemetry_panel)
@@ -115,26 +89,18 @@ class MainWindow(QMainWindow):
 
         return box
 
-    def create_telemetry_panel(
-        self,
-        elevation,
-        azimuth,
-        range_km,
-        range_rate,
-        doppler,
-        visibility,
-    ):
+    def create_telemetry_panel(self, state):
         box = QGroupBox("Telemetry")
         form = QFormLayout()
 
-        form.addRow("Satellite:", QLabel(self.iss.name))
-        form.addRow("Time UTC:", QLabel("2026-06-23 03:00"))
-        form.addRow("Elevation:", QLabel(f"{elevation:.2f}°"))
-        form.addRow("Azimuth:", QLabel(f"{azimuth:.2f}°"))
-        form.addRow("Range:", QLabel(f"{range_km:.2f} km"))
-        form.addRow("Range Rate:", QLabel(f"{range_rate:.2f} m/s"))
-        form.addRow("Doppler @ 437 MHz:", QLabel(f"{doppler:.2f} kHz"))
-        form.addRow("Visibility:", QLabel(visibility))
+        form.addRow("Satellite:", QLabel(state.satellite_name))
+        form.addRow("Time UTC:", QLabel(state.time_utc))
+        form.addRow("Elevation:", QLabel(f"{state.elevation_deg:.2f}°"))
+        form.addRow("Azimuth:", QLabel(f"{state.azimuth_deg:.2f}°"))
+        form.addRow("Range:", QLabel(f"{state.range_km:.2f} km"))
+        form.addRow("Range Rate:", QLabel(f"{state.range_rate_m_s:.2f} m/s"))
+        form.addRow("Doppler @ 437 MHz:", QLabel(f"{state.doppler_khz:.2f} kHz"))
+        form.addRow("Visibility:", QLabel(state.visibility))
 
         box.setLayout(form)
         box.setStyleSheet(
