@@ -20,14 +20,7 @@ class MainWindow(QMainWindow):
         self.resize(1100, 700)
 
         self.tracker = Tracker()
-
-        state = self.tracker.state_at(
-            2026,
-            6,
-            23,
-            3,
-            0,
-        )
+        state = self.tracker.current_state()
 
         central = QWidget()
         main_layout = QVBoxLayout()
