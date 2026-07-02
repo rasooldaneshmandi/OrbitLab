@@ -25,8 +25,16 @@ class EarthView(FigureCanvasQTAgg):
 
         self.ax.add_feature(cfeature.OCEAN, facecolor="#07111F")
         self.ax.add_feature(cfeature.LAND, facecolor="#4B5563")
-        self.ax.add_feature(cfeature.COASTLINE, edgecolor="#D1D5DB", linewidth=0.6)
-        self.ax.add_feature(cfeature.BORDERS, edgecolor="#6B7280", linewidth=0.3)
+        self.ax.add_feature(
+            cfeature.COASTLINE,
+            edgecolor="#D1D5DB",
+            linewidth=0.6,
+        )
+        self.ax.add_feature(
+            cfeature.BORDERS,
+            edgecolor="#6B7280",
+            linewidth=0.3,
+        )
 
         self.ax.gridlines(
             color="#374151",
@@ -44,13 +52,22 @@ class EarthView(FigureCanvasQTAgg):
             label="Nürnberg",
         )
 
-        self.track_line, = self.ax.plot(
+        self.past_track, = self.ax.plot(
             [],
             [],
-            color="#38BDF8",
-            linewidth=1.8,
+            color="#22C55E",
+            linewidth=2,
             transform=ccrs.PlateCarree(),
-            label="Orbit Track",
+            label="Past Orbit",
+        )
+
+        self.future_track, = self.ax.plot(
+            [],
+            [],
+            color="#3B82F6",
+            linewidth=2,
+            transform=ccrs.PlateCarree(),
+            label="Future Orbit",
         )
 
         self.satellite, = self.ax.plot(
@@ -83,11 +100,32 @@ class EarthView(FigureCanvasQTAgg):
             [longitude_deg],
             [latitude_deg],
         )
+
         self.draw_idle()
 
     def update_track(self, track):
-        lats = [p["lat"] for p in track]
-        lons = [p["lon"] for p in track]
+        if len(track) < 3:
+            return
 
-        self.track_line.set_data(lons, lats)
+        center = len(track) // 2
+
+        past = track[:center]
+        future = track[center:]
+
+        past_lon = [p["lon"] for p in past]
+        past_lat = [p["lat"] for p in past]
+
+        future_lon = [p["lon"] for p in future]
+        future_lat = [p["lat"] for p in future]
+
+        self.past_track.set_data(
+            past_lon,
+            past_lat,
+        )
+
+        self.future_track.set_data(
+            future_lon,
+            future_lat,
+        )
+
         self.draw_idle()
