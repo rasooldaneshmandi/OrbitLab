@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("OrbitLab - Live Satellite Tracking Console")
-        self.resize(1100, 800)
+        self.resize(1200, 850)
 
         self.tracker = Tracker()
 
@@ -28,9 +28,7 @@ class MainWindow(QMainWindow):
 
         title = QLabel("OrbitLab Mission Control")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(
-            "font-size: 26px; font-weight: bold; padding: 12px;"
-        )
+        title.setStyleSheet("font-size: 26px; font-weight: bold; padding: 12px;")
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -39,7 +37,7 @@ class MainWindow(QMainWindow):
 
         splitter.addWidget(self.earth_view)
         splitter.addWidget(telemetry_panel)
-        splitter.setSizes([650, 350])
+        splitter.setSizes([750, 350])
 
         self.doppler_plot = DopplerPlot()
 
@@ -68,6 +66,9 @@ class MainWindow(QMainWindow):
         self.range_rate_label = QLabel()
         self.doppler_label = QLabel()
         self.visibility_label = QLabel()
+        self.lat_label = QLabel()
+        self.lon_label = QLabel()
+        self.alt_label = QLabel()
 
         form.addRow("Satellite:", self.satellite_label)
         form.addRow("Time UTC:", self.time_label)
@@ -77,10 +78,12 @@ class MainWindow(QMainWindow):
         form.addRow("Range Rate:", self.range_rate_label)
         form.addRow("Doppler @ 437 MHz:", self.doppler_label)
         form.addRow("Visibility:", self.visibility_label)
+        form.addRow("Sat Latitude:", self.lat_label)
+        form.addRow("Sat Longitude:", self.lon_label)
+        form.addRow("Sat Altitude:", self.alt_label)
 
         box.setLayout(form)
-        box.setStyleSheet(
-            """
+        box.setStyleSheet("""
             QGroupBox {
                 font-size: 18px;
                 font-weight: bold;
@@ -90,13 +93,13 @@ class MainWindow(QMainWindow):
                 font-size: 16px;
                 padding: 4px;
             }
-            """
-        )
+        """)
 
         return box
 
     def update_display(self):
         state = self.tracker.current_state()
+        track = self.tracker.orbit_track()
 
         self.satellite_label.setText(state.satellite_name)
         self.time_label.setText(state.time_utc)
@@ -107,7 +110,13 @@ class MainWindow(QMainWindow):
         self.doppler_label.setText(f"{state.doppler_khz:.2f} kHz")
         self.visibility_label.setText(state.visibility)
 
+        self.lat_label.setText(f"{state.sat_lat_deg:.2f}°")
+        self.lon_label.setText(f"{state.sat_lon_deg:.2f}°")
+        self.alt_label.setText(f"{state.sat_alt_km:.2f} km")
+
+        self.earth_view.update_track(track)
+        self.earth_view.update_satellite(state.sat_lat_deg, state.sat_lon_deg)
+
         self.doppler_plot.update_plot(state.doppler_khz)
-        self.earth_view.update_satellite(state.azimuth_deg)
 
         self.tracker.step()

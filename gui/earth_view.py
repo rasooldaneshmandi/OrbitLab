@@ -1,74 +1,63 @@
-import numpy as np
-
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from matplotlib.patches import Circle
+
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 
 class EarthView(FigureCanvasQTAgg):
-
     def __init__(self):
-
-        self.figure = Figure(figsize=(6, 6))
+        self.figure = Figure(figsize=(7, 4), facecolor="#0B1020")
         super().__init__(self.figure)
 
-        self.ax = self.figure.add_subplot(111)
+        self.ax = self.figure.add_subplot(111, projection=ccrs.PlateCarree())
+        self.ax.set_global()
+        self.ax.set_facecolor("#07111F")
 
-        self.ax.set_aspect("equal")
-        self.ax.set_xlim(-1.3, 1.3)
-        self.ax.set_ylim(-1.3, 1.3)
+        self.ax.add_feature(cfeature.OCEAN, facecolor="#07111F")
+        self.ax.add_feature(cfeature.LAND, facecolor="#4B5563", edgecolor="#9CA3AF", linewidth=0.4)
+        self.ax.add_feature(cfeature.COASTLINE, edgecolor="#D1D5DB", linewidth=0.5)
+        self.ax.add_feature(cfeature.BORDERS, edgecolor="#6B7280", linewidth=0.3)
 
-        self.ax.set_xticks([])
-        self.ax.set_yticks([])
+        self.ax.gridlines(draw_labels=True, color="#374151", linewidth=0.5, linestyle="--")
 
-        self.ax.set_facecolor("#0B1020")
-
-        earth = Circle(
-            (0, 0),
-            1,
-            facecolor="#2E86DE",
-            edgecolor="white",
-            linewidth=2,
+        self.ground_station, = self.ax.plot(
+            11.0767, 49.4521,
+            marker="^", markersize=8, color="yellow",
+            transform=ccrs.PlateCarree(), label="Nürnberg"
         )
 
-        self.ax.add_patch(earth)
+        self.track_line, = self.ax.plot(
+            [], [],
+            color="#38BDF8",
+            linewidth=1.5,
+            transform=ccrs.PlateCarree(),
+            label="Orbit Track"
+        )
 
         self.satellite, = self.ax.plot(
-            [0],
-            [1.1],
-            "ro",
-            markersize=10,
+            0, 0,
+            marker="o", markersize=7, color="red",
+            transform=ccrs.PlateCarree(), label="ISS"
         )
 
-        self.ax.set_title(
-            "Earth View",
-            color="white",
-            fontsize=14,
+        self.ax.legend(
+            loc="lower left",
+            facecolor="#111827",
+            edgecolor="#9CA3AF",
+            labelcolor="white"
         )
 
-        # زاویه‌ای که روی صفحه نمایش داده می‌شود
-        self.display_angle = None
-
+        self.ax.set_title("World Map View", color="white", fontsize=14)
         self.draw()
 
-    def update_satellite(self, azimuth_deg):
+    def update_satellite(self, latitude_deg, longitude_deg):
+        self.satellite.set_data([longitude_deg], [latitude_deg])
+        self.draw_idle()
 
-        if self.display_angle is None:
-            self.display_angle = azimuth_deg
+    def update_track(self, track):
+        lats = [p["lat"] for p in track]
+        lons = [p["lon"] for p in track]
 
-        # کوتاه‌ترین مسیر بین دو زاویه
-        diff = (azimuth_deg - self.display_angle + 180) % 360 - 180
-
-        # حرکت نرم
-        self.display_angle += diff * 0.15
-
-        angle = np.deg2rad(self.display_angle)
-
-        r = 1.10
-
-        x = r * np.cos(angle)
-        y = r * np.sin(angle)
-
-        self.satellite.set_data([x], [y])
-
+        self.track_line.set_data(lons, lats)
         self.draw_idle()

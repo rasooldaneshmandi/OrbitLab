@@ -38,19 +38,11 @@ class Satellite:
     def topocentric(self, observer, t):
         return (self.skyfield_sat - observer).at(t)
 
-    def elevation_deg(self, observer, t):
-        elevation, _, _ = self.topocentric(observer, t).altaz()
-        return elevation.degrees
+    def subpoint(self, t):
+        subpoint = self.skyfield_sat.at(t).subpoint()
 
-    def azimuth_deg(self, observer, t):
-        _, azimuth, _ = self.topocentric(observer, t).altaz()
-        return azimuth.degrees
-
-    def range_km(self, observer, t):
-        _, _, distance = self.topocentric(observer, t).altaz()
-        return distance.km
-
-    def range_rate_m_s(self, observer, t, t_next, dt_seconds: float):
-        d1 = self.topocentric(observer, t).distance().m
-        d2 = self.topocentric(observer, t_next).distance().m
-        return (d2 - d1) / dt_seconds
+        return (
+            subpoint.latitude.degrees,
+            subpoint.longitude.degrees,
+            subpoint.elevation.km,
+        )
