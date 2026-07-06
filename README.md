@@ -115,7 +115,7 @@ The software has been designed with aerospace software engineering principles in
 > Add your latest screenshot here.
 
 ```
-screenshots/orbitlab_v1.png
+![OrbitLab Screenshot](screenshots/orbitlab_v1.png)
 ```
 
 Example:
