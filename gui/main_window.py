@@ -10,6 +10,7 @@ from orbit.satellite_catalog import SATELLITES
 from orbit.pass_predictor import PassPredictor
 
 from recorder.replay import MissionReplay
+from recorder.recorder import MissionRecorder
 
 from gui.doppler_plot import DopplerPlot
 from gui.earth_view import EarthView
@@ -29,6 +30,8 @@ class MainWindow(QMainWindow):
         self.mode = "LIVE"
 
         self.pass_predictor = PassPredictor(self.tracker)
+        self.recorder = MissionRecorder()
+
         self.is_running = True
 
         self.status_bar = OrbitStatusBar()
@@ -92,6 +95,12 @@ class MainWindow(QMainWindow):
         self.refresh_tle_button = QPushButton("Refresh TLE")
         self.refresh_tle_button.clicked.connect(self.refresh_tle)
 
+        self.start_record_button = QPushButton("Start Recording")
+        self.start_record_button.clicked.connect(self.start_recording)
+
+        self.stop_record_button = QPushButton("Stop Recording")
+        self.stop_record_button.clicked.connect(self.stop_recording)
+
         self.load_replay_button = QPushButton("Load Replay")
         self.load_replay_button.clicked.connect(self.load_replay)
 
@@ -112,6 +121,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.play_button)
         layout.addWidget(self.reset_button)
         layout.addWidget(self.refresh_tle_button)
+        layout.addWidget(self.start_record_button)
+        layout.addWidget(self.stop_record_button)
         layout.addWidget(self.load_replay_button)
         layout.addWidget(QLabel("Speed:"))
         layout.addWidget(self.speed_box)
@@ -227,6 +238,38 @@ class MainWindow(QMainWindow):
 
         self.update_display(step_time=False)
 
+    def start_recording(self):
+        if self.mode != "LIVE":
+            return
+
+        self.recorder.start()
+
+        self.status_bar.update_status(
+            satellite_name=self.tracker.satellite.name,
+            time_utc=self.tracker.clock.time_string(),
+            tle_status="Cached",
+            status="Recording...",
+        )
+
+    def stop_recording(self):
+        path = self.recorder.stop()
+
+        if path is None:
+            self.status_bar.update_status(
+                satellite_name=self.tracker.satellite.name,
+                time_utc=self.tracker.clock.time_string(),
+                tle_status="Cached",
+                status="No recording saved",
+            )
+            return
+
+        self.status_bar.update_status(
+            satellite_name=self.tracker.satellite.name,
+            time_utc=self.tracker.clock.time_string(),
+            tle_status="Cached",
+            status=f"Saved: {path.name}",
+        )
+
     def load_replay(self):
         filename, _ = QFileDialog.getOpenFileName(
             self,
@@ -268,7 +311,7 @@ class MainWindow(QMainWindow):
         if self.mode == "LIVE":
             last_update = self.tracker.tle_last_update()
             tle_text = f"Cached ({last_update})" if last_update else "Not Cached"
-            status_text = "Tracking"
+            status_text = "Recording..." if self.recorder.is_recording else "Tracking"
         else:
             tle_text = "Replay File"
             status_text = "Replay Mode"
@@ -340,6 +383,9 @@ class MainWindow(QMainWindow):
         self.world_map_view.update_day_night(state.time_utc)
 
         self.doppler_plot.update_plot(state.doppler_khz)
+
+        if self.mode == "LIVE":
+            self.recorder.record(state)
 
         if self.is_running and step_time:
             self.data_source.step()
