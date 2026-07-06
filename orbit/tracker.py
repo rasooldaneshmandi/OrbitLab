@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from orbit.satellite import Satellite
 from orbit.clock import SimulationClock
+from orbit.satellite_catalog import SATELLITES
 
 from geometry.calculator import GeometryCalculator
 from geometry.doppler import DopplerCalculator
@@ -28,22 +29,37 @@ class TrackingState:
 class Tracker:
     def __init__(
         self,
-        satellite_name="ISS (ZARYA)",
+        satellite_key="ISS",
         lat_deg=49.4521,
         lon_deg=11.0767,
         elevation_m=300,
         carrier_frequency_hz=437e6,
     ):
         self.clock = SimulationClock()
-        self.satellite = Satellite(satellite_name)
 
-        self.observer = self.satellite.observer(
-            lat_deg,
-            lon_deg,
-            elevation_m,
+        self.lat_deg = lat_deg
+        self.lon_deg = lon_deg
+        self.elevation_m = elevation_m
+        self.carrier_frequency_hz = carrier_frequency_hz
+
+        self.set_satellite(satellite_key)
+
+    def set_satellite(self, satellite_key):
+        if satellite_key not in SATELLITES:
+            raise ValueError(f"Satellite '{satellite_key}' not found in catalog.")
+
+        sat_info = SATELLITES[satellite_key]
+
+        self.satellite = Satellite(
+            name=sat_info["name"],
+            tle_url=sat_info["tle_url"],
         )
 
-        self.carrier_frequency_hz = carrier_frequency_hz
+        self.observer = self.satellite.observer(
+            self.lat_deg,
+            self.lon_deg,
+            self.elevation_m,
+        )
 
     def current_state(self):
         year, month, day, hour, minute = self.clock.current_time()
@@ -51,6 +67,18 @@ class Tracker:
 
     def step(self):
         self.clock.step()
+
+    def set_speed(self, step_minutes):
+        self.clock.set_step_minutes(step_minutes)
+
+    def set_time_minutes(self, total_minutes):
+        self.clock.set_total_minutes(total_minutes)
+
+    def current_total_minutes(self):
+        return self.clock.current_total_minutes()
+
+    def reset(self):
+        self.clock.reset()
 
     def state_at(self, year, month, day, hour, minute):
         t = self.satellite.time_utc(year, month, day, hour, minute)
@@ -77,7 +105,11 @@ class Tracker:
         d1 = GeometryCalculator.distance_m(topo)
         d2 = GeometryCalculator.distance_m(topo_next)
 
-        range_rate = GeometryCalculator.range_rate_m_s(d1, d2, 60)
+        range_rate = GeometryCalculator.range_rate_m_s(
+            d1,
+            d2,
+            self.clock.step_minutes * 60,
+        )
 
         doppler = DopplerCalculator.compute_khz(
             range_rate,
@@ -123,7 +155,6 @@ class Tracker:
             m = total_minutes % 60
 
             t = self.satellite.time_utc(year, month, day, h, m)
-
             lat, lon, alt = self.satellite.subpoint(t)
 
             track.append(
