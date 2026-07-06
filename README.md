@@ -1,67 +1,37 @@
-# 🚀 OrbitLab
+# OrbitLab
 
-**OrbitLab** is an open-source framework for real-time satellite tracking, Doppler analysis, and orbit determination.
+**OrbitLab** is a satellite tracking and mission analysis tool built with Python, Skyfield, PyQt6, Matplotlib, and Cartopy.
+
+It provides real-time satellite tracking, Doppler analysis, pass prediction, ground track visualization, TLE caching, and mission playback controls.
+
+---
 
 ## Features
 
-- ✅ TLE propagation using Skyfield
-- ✅ Ground station geometry
-- ✅ Doppler calculation
-- ✅ Range and elevation computation
-- 🔄 Live GUI visualization
-- ⏳ Orbit determination (coming soon)
-- ⏳ Extended Kalman Filter (EKF)
-- ⏳ SDR integration
-- ⏳ FPGA implementation
+- Real-time satellite tracking using TLE data
+- 3D Globe visualization
+- 2D Ground Track map
+- Past and future orbit path
+- AOS / MAX / LOS pass prediction
+- Day / Night terminator
+- Doppler shift calculation
+- Satellite footprint visualization
+- Ground station visibility analysis
+- Timeline slider
+- Play / Pause / Reset controls
+- Speed control
+- Satellite manager
+- TLE caching and refresh system
 
 ---
 
-## Project Structure
+## Screenshot
 
-```
-OrbitLab/
-│
-├── gui/
-├── orbit/
-├── geometry/
-├── data/
-├── docs/
-├── screenshots/
-│
-├── main.py
-├── requirements.txt
-└── README.md
-```
+![OrbitLab Screenshot](screenshots/orbitlab_v1.png)
 
 ---
 
-## Roadmap
+## Installation
 
-### Version 1
-- GUI
-- ISS tracking
-- Doppler visualization
-
-### Version 2
-- Ground station visualization
-- Live plots
-
-### Version 3
-- Orbit visualization
-
-### Future
-- Orbit Determination
-- Kalman Filter
-- Multi-satellite tracking
-- SDR Support
-- FPGA Backend
-
----
-
-## Author
-
-**Rasool Daneshmandi**
-
-Master of Science in Embedded Systems Engineering
-
-University of Duisburg-Essen
+```bash
+pip install -r requirements.txt
