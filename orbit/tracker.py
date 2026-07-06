@@ -80,6 +80,12 @@ class Tracker:
     def reset(self):
         self.clock.reset()
 
+    def refresh_tle(self):
+        self.satellite.refresh_tle()
+
+    def tle_last_update(self):
+        return self.satellite.tle_last_update()
+
     def state_at(self, year, month, day, hour, minute):
         t = self.satellite.time_utc(year, month, day, hour, minute)
 

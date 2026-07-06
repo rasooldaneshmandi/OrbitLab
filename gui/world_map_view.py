@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from cartopy.feature.nightshade import Nightshade
 
 
 class WorldMapView(FigureCanvasQTAgg):
@@ -26,6 +29,8 @@ class WorldMapView(FigureCanvasQTAgg):
             linewidth=0.5,
             linestyle="--",
         )
+
+        self.nightshade_artist = None
 
         self.ground_station, = self.ax.plot(
             11.0767,
@@ -65,6 +70,39 @@ class WorldMapView(FigureCanvasQTAgg):
             label="Satellite",
         )
 
+        self.aos_marker, = self.ax.plot(
+            [],
+            [],
+            marker="o",
+            markersize=8,
+            color="lime",
+            linestyle="None",
+            transform=ccrs.PlateCarree(),
+            label="AOS",
+        )
+
+        self.max_marker, = self.ax.plot(
+            [],
+            [],
+            marker="o",
+            markersize=8,
+            color="magenta",
+            linestyle="None",
+            transform=ccrs.PlateCarree(),
+            label="MAX",
+        )
+
+        self.los_marker, = self.ax.plot(
+            [],
+            [],
+            marker="o",
+            markersize=8,
+            color="cyan",
+            linestyle="None",
+            transform=ccrs.PlateCarree(),
+            label="LOS",
+        )
+
         self.ax.legend(
             loc="lower left",
             facecolor="#111827",
@@ -93,5 +131,30 @@ class WorldMapView(FigureCanvasQTAgg):
             )
 
         self.satellite.set_data([sat_lon], [sat_lat])
+        self.draw_idle()
+
+    def update_pass_markers(self, pass_info):
+        if pass_info is None:
+            return
+
+        self.aos_marker.set_data([pass_info.aos_lon], [pass_info.aos_lat])
+        self.max_marker.set_data([pass_info.max_lon], [pass_info.max_lat])
+        self.los_marker.set_data([pass_info.los_lon], [pass_info.los_lat])
+
+        self.draw_idle()
+
+    def update_day_night(self, time_utc):
+        if self.nightshade_artist is not None:
+            self.nightshade_artist.remove()
+            self.nightshade_artist = None
+
+        dt = datetime.strptime(
+            time_utc,
+            "%Y-%m-%d %H:%M"
+        ).replace(tzinfo=timezone.utc)
+
+        self.nightshade_artist = self.ax.add_feature(
+            Nightshade(dt, alpha=0.35)
+        )
 
         self.draw_idle()
