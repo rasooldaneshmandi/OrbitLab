@@ -1,5 +1,7 @@
 from skyfield.api import load, wgs84
 
+from orbit.tle_manager import TLEManager
+
 
 class Satellite:
     def __init__(
@@ -10,7 +12,10 @@ class Satellite:
         self.name = name
         self.tle_url = tle_url
 
-        satellites = load.tle_file(self.tle_url)
+        self.tle_manager = TLEManager()
+        tle_path = self.tle_manager.load_tle_file(self.tle_url)
+
+        satellites = load.tle_file(str(tle_path))
         matches = [sat for sat in satellites if sat.name == self.name]
 
         if not matches:
@@ -46,3 +51,16 @@ class Satellite:
             subpoint.longitude.degrees,
             subpoint.elevation.km,
         )
+
+    def tle_last_update(self):
+        return self.tle_manager.last_update(self.tle_url)
+
+    def refresh_tle(self):
+        tle_path = self.tle_manager.force_refresh(self.tle_url)
+        satellites = load.tle_file(str(tle_path))
+        matches = [sat for sat in satellites if sat.name == self.name]
+
+        if not matches:
+            raise ValueError(f"Satellite '{self.name}' not found after refresh.")
+
+        self.skyfield_sat = matches[0]

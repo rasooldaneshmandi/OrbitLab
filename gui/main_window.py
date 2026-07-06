@@ -1,15 +1,18 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
     QGroupBox, QFormLayout, QSplitter, QCheckBox,
-    QPushButton, QComboBox, QSlider
+    QPushButton, QComboBox, QSlider, QTabWidget
 )
 from PyQt6.QtCore import Qt, QTimer
 
 from orbit.tracker import Tracker
 from orbit.satellite_catalog import SATELLITES
 from orbit.pass_predictor import PassPredictor
+
 from gui.doppler_plot import DopplerPlot
 from gui.earth_view import EarthView
+from gui.world_map_view import WorldMapView
+from gui.status_bar import OrbitStatusBar
 
 
 class MainWindow(QMainWindow):
@@ -22,6 +25,9 @@ class MainWindow(QMainWindow):
         self.tracker = Tracker("ISS")
         self.pass_predictor = PassPredictor(self.tracker)
         self.is_running = True
+
+        self.status_bar = OrbitStatusBar()
+        self.setStatusBar(self.status_bar)
 
         central = QWidget()
         main_layout = QVBoxLayout()
@@ -36,9 +42,15 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.earth_view = EarthView()
+        self.world_map_view = WorldMapView()
+
+        self.view_tabs = QTabWidget()
+        self.view_tabs.addTab(self.earth_view, "3D Globe")
+        self.view_tabs.addTab(self.world_map_view, "2D World Map")
+
         telemetry_panel = self.create_telemetry_panel()
 
-        splitter.addWidget(self.earth_view)
+        splitter.addWidget(self.view_tabs)
         splitter.addWidget(telemetry_panel)
         splitter.setSizes([750, 350])
 
@@ -53,9 +65,9 @@ class MainWindow(QMainWindow):
         central.setLayout(main_layout)
         self.setCentralWidget(central)
 
-        self.update_display()
+        self.update_display(step_time=False)
 
-        self.timer = QTimer()
+        self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_display)
         self.timer.start(1000)
 
@@ -73,7 +85,12 @@ class MainWindow(QMainWindow):
         self.reset_button.clicked.connect(self.reset_simulation)
 
         self.speed_box = QComboBox()
-        self.speed_box.addItems(["1 min/step", "5 min/step", "10 min/step", "30 min/step"])
+        self.speed_box.addItems([
+            "1 min/step",
+            "5 min/step",
+            "10 min/step",
+            "30 min/step"
+        ])
         self.speed_box.currentIndexChanged.connect(self.change_speed)
 
         self.centered_checkbox = QCheckBox("Satellite Centered View")
@@ -151,6 +168,7 @@ class MainWindow(QMainWindow):
         form.addRow("Duration:", self.duration_label)
 
         box.setLayout(form)
+
         return box
 
     def timeline_changed(self, value):
@@ -184,6 +202,13 @@ class MainWindow(QMainWindow):
         state = self.tracker.current_state()
         track = self.tracker.orbit_track()
 
+        self.status_bar.update_status(
+            satellite_name=state.satellite_name,
+            time_utc=state.time_utc,
+            tle_status="Cached",
+            status="Tracking",
+        )
+
         self.satellite_label.setText(state.satellite_name)
         self.time_label.setText(state.time_utc)
         self.elevation_label.setText(f"{state.elevation_deg:.2f}°")
@@ -213,6 +238,7 @@ class MainWindow(QMainWindow):
             self.duration_label.setText("-")
 
         total_minutes = self.tracker.current_total_minutes()
+
         self.timeline_slider.blockSignals(True)
         self.timeline_slider.setValue(total_minutes)
         self.timeline_slider.blockSignals(False)
@@ -225,6 +251,12 @@ class MainWindow(QMainWindow):
             state.sat_lat_deg,
             state.sat_lon_deg,
             state.sat_alt_km,
+            track,
+        )
+
+        self.world_map_view.update_scene(
+            state.sat_lat_deg,
+            state.sat_lon_deg,
             track,
         )
 
