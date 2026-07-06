@@ -1,32 +1,15 @@
-from dataclasses import dataclass
-
 from orbit.satellite import Satellite
 from orbit.clock import SimulationClock
 from orbit.satellite_catalog import SATELLITES
+from orbit.tracking_state import TrackingState
 
 from geometry.calculator import GeometryCalculator
 from geometry.doppler import DopplerCalculator
 from geometry.visibility import VisibilityChecker
+from orbit.data_source import DataSource
 
 
-@dataclass
-class TrackingState:
-    satellite_name: str
-    time_utc: str
-
-    elevation_deg: float
-    azimuth_deg: float
-    range_km: float
-    range_rate_m_s: float
-    doppler_khz: float
-    visibility: str
-
-    sat_lat_deg: float
-    sat_lon_deg: float
-    sat_alt_km: float
-
-
-class Tracker:
+class Tracker(DataSource):
     def __init__(
         self,
         satellite_key="ISS",
@@ -132,9 +115,12 @@ class Tracker:
 
             elevation_deg=elevation,
             azimuth_deg=azimuth,
+
             range_km=range_km,
             range_rate_m_s=range_rate,
+
             doppler_khz=doppler,
+
             visibility=visibility,
 
             sat_lat_deg=sat_lat,
