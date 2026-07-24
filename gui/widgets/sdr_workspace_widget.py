@@ -458,6 +458,29 @@ class SDRWorkspaceWidget(QWidget):
         self.stop()
         event.accept()
 
+
+    def _on_averaging_changed(
+        self,
+        averaging: int,
+    ) -> None:
+        averaging = int(averaging)
+
+        print(
+            f"Workspace averaging changed: {averaging}"
+        )
+
+        self._display_widget.spectrum_widget.set_averaging_count(
+            averaging
+        )
+
+        self._try_set_pipeline_value(
+            names=(
+                "set_averaging",
+                "set_average_count",
+                "set_averaging_count",
+            ),
+            value=averaging,
+        )
     @property
     def is_running(self) -> bool:
         pipeline_state = getattr(
@@ -482,3 +505,4 @@ class SDRWorkspaceWidget(QWidget):
     @property
     def display_widget(self) -> SDRDisplayWidget:
         return self._display_widget
+

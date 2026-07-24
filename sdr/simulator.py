@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 
 from sdr.device import ComplexArray, SDRDevice
 
@@ -53,6 +53,7 @@ class SDRSimulator(SDRDevice):
 
         self._phase_radians = 0.0
         self._running = False
+
         self._random_generator = np.random.default_rng(seed)
 
     def start(self) -> None:

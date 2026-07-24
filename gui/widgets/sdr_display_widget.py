@@ -103,8 +103,13 @@ class SDRDisplayWidget(QWidget):
     ) -> SpectrumWidget:
         return self._spectrum_widget
 
+
+    @property
+    def spectrum_widget(self) -> SpectrumWidget:
+        return self._spectrum_widget
     @property
     def waterfall_widget(
         self,
     ) -> WaterfallWidget:
         return self._waterfall_widget
+
