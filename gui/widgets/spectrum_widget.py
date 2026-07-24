@@ -5,7 +5,6 @@ import pyqtgraph as pg
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -13,41 +12,35 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sdr.spectrum_processor import (
-    SpectrumProcessingResult,
-    SpectrumProcessor,
-)
-
 
 class SpectrumWidget(QWidget):
     """
-    Real-time SDR spectrum display.
+    Real-time SDR spectrum display with an interactive user marker.
 
     Features:
         - Current spectrum
-        - Moving-average spectrum
-        - Max-hold spectrum
-        - Peak marker
-        - Runtime visibility controls
-        - Backward-compatible update_spectrum() API
+        - Automatic peak marker
+        - User marker by mouse click
+        - Draggable user-marker line
+        - Clear Marker button
     """
 
     def __init__(
         self,
-        *,
-        averaging_count: int = 1,
-        max_hold_enabled: bool = True,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
-        self._processor = SpectrumProcessor(
-            averaging_count=averaging_count,
-            max_hold_enabled=max_hold_enabled,
-        )
+        self._latest_peak_frequency_hz: float | None = None
+        self._latest_peak_power_db: float | None = None
 
-        self._last_result: SpectrumProcessingResult | None = None
-        self._last_rf_frequencies_hz: np.ndarray | None = None
+        self._latest_rf_frequencies_hz: np.ndarray | None = None
+        self._latest_power_db: np.ndarray | None = None
+
+        self._marker_frequency_hz: float | None = None
+        self._marker_power_db: float | None = None
+
+        self._updating_marker_line = False
 
         self._build_ui()
         self._connect_signals()
@@ -57,6 +50,13 @@ class SpectrumWidget(QWidget):
             "Real-Time SDR Spectrum"
         )
         self._title_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self._status_label = QLabel(
+            "Waiting for spectrum data..."
+        )
+        self._status_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
 
@@ -86,120 +86,70 @@ class SpectrumWidget(QWidget):
         )
 
         self._plot_widget.enableAutoRange(
-            axis="x",
-            enable=True,
-        )
-
-        self._plot_widget.enableAutoRange(
             axis="y",
             enable=True,
         )
 
-        self._plot_widget.addLegend()
-
-        self._current_curve = self._plot_widget.plot(
+        self._spectrum_curve = self._plot_widget.plot(
             [],
             [],
-            pen=pg.mkPen(
-                width=1.5,
-            ),
-            name="Current",
+            pen=pg.mkPen(width=1.5),
+            name="Spectrum",
         )
 
-        self._average_curve = self._plot_widget.plot(
-            [],
-            [],
-            pen=pg.mkPen(
-                width=2.0,
-                style=Qt.PenStyle.DashLine,
-            ),
-            name="Average",
-        )
-
-        self._max_hold_curve = self._plot_widget.plot(
-            [],
-            [],
-            pen=pg.mkPen(
-                width=1.5,
-                style=Qt.PenStyle.DotLine,
-            ),
-            name="Max Hold",
-        )
-
+        # Automatic strongest-peak marker.
         self._peak_marker = pg.ScatterPlotItem(
             size=10,
-            symbol="o",
+            symbol="t",
         )
-
         self._plot_widget.addItem(
             self._peak_marker
         )
 
         self._peak_text = pg.TextItem(
-            anchor=(0.5, 1.2),
+            text="",
+            anchor=(0.5, 1.3),
         )
-
         self._plot_widget.addItem(
             self._peak_text
         )
 
-        self._current_checkbox = QCheckBox(
-            "Current"
+        # Interactive user marker.
+        self._marker_line = pg.InfiniteLine(
+            angle=90,
+            movable=True,
         )
-        self._current_checkbox.setChecked(True)
-
-        self._average_checkbox = QCheckBox(
-            "Average"
-        )
-        self._average_checkbox.setChecked(
-            self._processor.averaging_count > 1
+        self._marker_line.setVisible(False)
+        self._plot_widget.addItem(
+            self._marker_line
         )
 
-        self._max_hold_checkbox = QCheckBox(
-            "Max Hold"
+        self._marker_point = pg.ScatterPlotItem(
+            size=12,
+            symbol="x",
         )
-        self._max_hold_checkbox.setChecked(
-            self._processor.max_hold_enabled
-        )
-
-        self._reset_average_button = QPushButton(
-            "Reset Average"
+        self._marker_point.setVisible(False)
+        self._plot_widget.addItem(
+            self._marker_point
         )
 
-        self._reset_max_hold_button = QPushButton(
-            "Reset Max Hold"
+        self._marker_text = pg.TextItem(
+            text="",
+            anchor=(0.5, 1.3),
+        )
+        self._marker_text.setVisible(False)
+        self._plot_widget.addItem(
+            self._marker_text
+        )
+
+        self._clear_marker_button = QPushButton(
+            "Clear Marker"
         )
 
         controls_layout = QHBoxLayout()
-
-        controls_layout.addWidget(
-            self._current_checkbox
-        )
-
-        controls_layout.addWidget(
-            self._average_checkbox
-        )
-
-        controls_layout.addWidget(
-            self._max_hold_checkbox
-        )
-
         controls_layout.addStretch(1)
-
         controls_layout.addWidget(
-            self._reset_average_button
-        )
-
-        controls_layout.addWidget(
-            self._reset_max_hold_button
-        )
-
-        self._status_label = QLabel(
-            "Waiting for spectrum data..."
-        )
-
-        self._status_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            self._clear_marker_button
         )
 
         layout = QVBoxLayout(self)
@@ -222,24 +172,16 @@ class SpectrumWidget(QWidget):
         )
 
     def _connect_signals(self) -> None:
-        self._current_checkbox.toggled.connect(
-            self._on_visibility_changed
+        self._plot_widget.scene().sigMouseClicked.connect(
+            self._on_plot_clicked
         )
 
-        self._average_checkbox.toggled.connect(
-            self._on_visibility_changed
+        self._marker_line.sigPositionChanged.connect(
+            self._on_marker_line_moved
         )
 
-        self._max_hold_checkbox.toggled.connect(
-            self._on_max_hold_toggled
-        )
-
-        self._reset_average_button.clicked.connect(
-            self.reset_average
-        )
-
-        self._reset_max_hold_button.clicked.connect(
-            self.reset_max_hold
+        self._clear_marker_button.clicked.connect(
+            self.clear_marker
         )
 
     def update_spectrum(
@@ -250,6 +192,23 @@ class SpectrumWidget(QWidget):
         center_frequency_hz: float = 0.0,
         frequencies_are_baseband: bool = True,
     ) -> None:
+        """
+        Update the displayed spectrum.
+
+        Args:
+            frequencies_hz:
+                Frequency axis in Hz.
+
+            power_db:
+                Spectrum power in dB.
+
+            center_frequency_hz:
+                SDR center frequency in Hz.
+
+            frequencies_are_baseband:
+                When True, center_frequency_hz is added to
+                frequencies_hz before plotting.
+        """
         frequencies_hz = np.asarray(
             frequencies_hz,
             dtype=np.float64,
@@ -271,6 +230,7 @@ class SpectrumWidget(QWidget):
             )
 
         if frequencies_hz.size == 0:
+            self.clear_spectrum()
             return
 
         if frequencies_hz.size != power_db.size:
@@ -279,16 +239,12 @@ class SpectrumWidget(QWidget):
                 "the same size."
             )
 
-        if not np.all(
-            np.isfinite(frequencies_hz)
-        ):
+        if not np.all(np.isfinite(frequencies_hz)):
             raise ValueError(
                 "frequencies_hz contains invalid values."
             )
 
-        if not np.all(
-            np.isfinite(power_db)
-        ):
+        if not np.all(np.isfinite(power_db)):
             raise ValueError(
                 "power_db contains invalid values."
             )
@@ -299,214 +255,327 @@ class SpectrumWidget(QWidget):
                 + float(center_frequency_hz)
             )
         else:
-            rf_frequencies_hz = (
-                frequencies_hz.copy()
-            )
+            rf_frequencies_hz = frequencies_hz.copy()
 
-        result = self._processor.process(
-            rf_frequencies_hz,
-            power_db,
-        )
-
-        self._last_result = result
-        self._last_rf_frequencies_hz = (
+        self._latest_rf_frequencies_hz = (
             rf_frequencies_hz.copy()
         )
 
+        self._latest_power_db = power_db.copy()
+
         frequencies_mhz = (
-            rf_frequencies_hz
-            / 1_000_000.0
+            rf_frequencies_hz / 1_000_000.0
         )
 
-        self._current_curve.setData(
+        self._spectrum_curve.setData(
             frequencies_mhz,
-            result.current_power_db,
+            power_db,
         )
 
-        self._average_curve.setData(
-            frequencies_mhz,
-            result.average_power_db,
+        peak_index = int(
+            np.argmax(power_db)
         )
 
-        self._max_hold_curve.setData(
-            frequencies_mhz,
-            result.max_hold_power_db,
+        peak_frequency_hz = float(
+            rf_frequencies_hz[peak_index]
         )
 
         peak_frequency_mhz = (
-            result.peak_frequency_hz
-            / 1_000_000.0
+            peak_frequency_hz / 1_000_000.0
+        )
+
+        peak_power_db = float(
+            power_db[peak_index]
+        )
+
+        self._latest_peak_frequency_hz = (
+            peak_frequency_hz
+        )
+
+        self._latest_peak_power_db = (
+            peak_power_db
         )
 
         self._peak_marker.setData(
-            [
-                {
-                    "pos": (
-                        peak_frequency_mhz,
-                        result.peak_power_db,
-                    )
-                }
-            ]
-        )
-
-        self._peak_text.setPos(
-            peak_frequency_mhz,
-            result.peak_power_db,
+            [peak_frequency_mhz],
+            [peak_power_db],
         )
 
         self._peak_text.setText(
             f"{peak_frequency_mhz:.6f} MHz\n"
-            f"{result.peak_power_db:.2f} dB"
+            f"{peak_power_db:.2f} dB"
         )
 
-        self._status_label.setText(
-            f"Peak: {peak_frequency_mhz:.6f} MHz"
-            f"   |   Power: {result.peak_power_db:.2f} dB"
-            f"   |   Average: "
-            f"{self._processor.average_frame_count}/"
-            f"{self._processor.averaging_count}"
-            f"   |   FFT bins: {power_db.size}"
+        self._peak_text.setPos(
+            peak_frequency_mhz,
+            peak_power_db,
         )
 
-        self._apply_visibility()
-
-    def _on_visibility_changed(
-        self,
-        checked: bool,
-    ) -> None:
-        del checked
-        self._apply_visibility()
-
-    def _on_max_hold_toggled(
-        self,
-        enabled: bool,
-    ) -> None:
-        self._processor.set_max_hold_enabled(
-            enabled
-        )
-
-        self._apply_visibility()
-
-    def _apply_visibility(self) -> None:
-        self._current_curve.setVisible(
-            self._current_checkbox.isChecked()
-        )
-
-        self._average_curve.setVisible(
-            self._average_checkbox.isChecked()
-        )
-
-        self._max_hold_curve.setVisible(
-            self._max_hold_checkbox.isChecked()
-        )
-
-        show_peak = (
-            self._current_checkbox.isChecked()
-            and self._last_result is not None
-        )
-
-        self._peak_marker.setVisible(
-            show_peak
-        )
-
-        self._peak_text.setVisible(
-            show_peak
-        )
-
-    def set_averaging_count(
-        self,
-        averaging_count: int,
-    ) -> None:
-        self._processor.set_averaging_count(
-            averaging_count
-        )
-
-        if self._processor.averaging_count > 1:
-            self._average_checkbox.setChecked(
-                True
+        # Keep an existing user marker attached to the
+        # nearest FFT bin as new frames arrive.
+        if self._marker_frequency_hz is not None:
+            self._set_marker_from_frequency(
+                self._marker_frequency_hz
+            )
+        else:
+            self._status_label.setText(
+                f"Peak: {peak_frequency_mhz:.6f} MHz"
+                f"   |   Power: {peak_power_db:.2f} dB"
+                f"   |   FFT bins: {frequencies_hz.size}"
             )
 
-        self._status_label.setText(
-            f"Averaging count set to {averaging_count}."
-        )
-
-    def set_max_hold_enabled(
+    def _on_plot_clicked(
         self,
-        enabled: bool,
+        event,
     ) -> None:
-        enabled = bool(enabled)
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
 
-        self._processor.set_max_hold_enabled(
-            enabled
+        if self._latest_rf_frequencies_hz is None:
+            return
+
+        if self._latest_power_db is None:
+            return
+
+        scene_position = event.scenePos()
+        view_box = self._plot_widget.getPlotItem().vb
+
+        # Ignore clicks outside the actual plotting area.
+        if not view_box.sceneBoundingRect().contains(
+            scene_position
+        ):
+            return
+
+        view_position = view_box.mapSceneToView(
+            scene_position
         )
 
-        self._max_hold_checkbox.setChecked(
-            enabled
+        clicked_frequency_hz = (
+            float(view_position.x())
+            * 1_000_000.0
         )
 
-    def reset_average(self) -> None:
-        self._processor.reset_average()
+        self._set_marker_from_frequency(
+            clicked_frequency_hz
+        )
 
-        self._average_curve.clear()
+    def _on_marker_line_moved(
+        self,
+    ) -> None:
+        if self._updating_marker_line:
+            return
+
+        if self._latest_rf_frequencies_hz is None:
+            return
+
+        dragged_frequency_hz = (
+            float(self._marker_line.value())
+            * 1_000_000.0
+        )
+
+        self._set_marker_from_frequency(
+            dragged_frequency_hz
+        )
+
+    def _set_marker_from_frequency(
+        self,
+        requested_frequency_hz: float,
+    ) -> None:
+        """
+        Place the marker on the strongest local peak
+        near the requested frequency.
+        """
+        if self._latest_rf_frequencies_hz is None:
+            return
+
+        if self._latest_power_db is None:
+            return
+
+        frequencies_hz = self._latest_rf_frequencies_hz
+        power_db = self._latest_power_db
+
+        if frequencies_hz.size == 0:
+            return
+
+        if power_db.size == 0:
+            return
+
+        nearest_index = int(
+            np.argmin(
+                np.abs(
+                    frequencies_hz
+                    - float(requested_frequency_hz)
+                )
+            )
+        )
+
+        search_radius_bins = 20
+
+        search_start = max(
+            0,
+            nearest_index - search_radius_bins,
+        )
+
+        search_stop = min(
+            power_db.size,
+            nearest_index + search_radius_bins + 1,
+        )
+
+        local_power_db = power_db[
+            search_start:search_stop
+        ]
+
+        if local_power_db.size == 0:
+            marker_index = nearest_index
+        else:
+            local_peak_index = int(
+                np.argmax(local_power_db)
+            )
+
+            marker_index = (
+                search_start
+                + local_peak_index
+            )
+
+        marker_frequency_hz = float(
+            frequencies_hz[
+                marker_index
+            ]
+        )
+
+        marker_power_db = float(
+            power_db[
+                marker_index
+            ]
+        )
+
+        marker_frequency_mhz = (
+            marker_frequency_hz
+            / 1_000_000.0
+        )
+
+        self._marker_frequency_hz = (
+            marker_frequency_hz
+        )
+
+        self._marker_power_db = (
+            marker_power_db
+        )
+
+        self._updating_marker_line = True
+
+        try:
+            self._marker_line.setValue(
+                marker_frequency_mhz
+            )
+        finally:
+            self._updating_marker_line = False
+
+        self._marker_point.setData(
+            [marker_frequency_mhz],
+            [marker_power_db],
+        )
+
+        self._marker_text.setText(
+            f"M1\n"
+            f"{marker_frequency_mhz:.6f} MHz\n"
+            f"{marker_power_db:.2f} dB"
+        )
+
+        self._marker_text.setPos(
+            marker_frequency_mhz,
+            marker_power_db,
+        )
+
+        self._marker_line.setVisible(True)
+        self._marker_point.setVisible(True)
+        self._marker_text.setVisible(True)
+
+        frequency_error_hz = (
+            marker_frequency_hz
+            - float(requested_frequency_hz)
+        )
 
         self._status_label.setText(
-            "Average spectrum reset."
+            f"M1: {marker_frequency_mhz:.6f} MHz"
+            f"   |   Power: {marker_power_db:.2f} dB"
+            f"   |   Snap: "
+            f"{frequency_error_hz / 1_000.0:+.2f} kHz"
+        )
+    def clear_marker(self) -> None:
+        self._marker_frequency_hz = None
+        self._marker_power_db = None
+
+        self._marker_line.setVisible(False)
+        self._marker_point.setVisible(False)
+        self._marker_text.setVisible(False)
+
+        self._marker_point.setData(
+            [],
+            [],
         )
 
-    def reset_max_hold(self) -> None:
-        self._processor.reset_max_hold()
+        self._marker_text.setText("")
 
-        self._max_hold_curve.clear()
+        if self._latest_peak_frequency_hz is None:
+            self._status_label.setText(
+                "Waiting for spectrum data..."
+            )
+            return
 
         self._status_label.setText(
-            "Max-hold spectrum reset."
+            f"Peak: "
+            f"{self._latest_peak_frequency_hz / 1_000_000.0:.6f} MHz"
+            f"   |   Power: "
+            f"{self._latest_peak_power_db:.2f} dB"
         )
 
     def clear_spectrum(self) -> None:
-        self._processor.reset()
+        self._spectrum_curve.setData(
+            [],
+            [],
+        )
 
-        self._last_result = None
-        self._last_rf_frequencies_hz = None
+        self._peak_marker.setData(
+            [],
+            [],
+        )
 
-        self._current_curve.clear()
-        self._average_curve.clear()
-        self._max_hold_curve.clear()
-
-        self._peak_marker.clear()
         self._peak_text.setText("")
+
+        self.clear_marker()
+
+        self._latest_peak_frequency_hz = None
+        self._latest_peak_power_db = None
+
+        self._latest_rf_frequencies_hz = None
+        self._latest_power_db = None
 
         self._status_label.setText(
             "Waiting for spectrum data..."
         )
 
     @property
-    def averaging_count(self) -> int:
-        return self._processor.averaging_count
-
-    @property
-    def max_hold_enabled(self) -> bool:
-        return self._processor.max_hold_enabled
-
-    @property
-    def peak_frequency_hz(
+    def latest_peak_frequency_hz(
         self,
     ) -> float | None:
-        if self._last_result is None:
-            return None
-
-        return self._last_result.peak_frequency_hz
+        return self._latest_peak_frequency_hz
 
     @property
-    def peak_power_db(
+    def latest_peak_power_db(
         self,
     ) -> float | None:
-        if self._last_result is None:
-            return None
-
-        return self._last_result.peak_power_db
+        return self._latest_peak_power_db
 
     @property
-    def processor(self) -> SpectrumProcessor:
-        return self._processor
+    def marker_frequency_hz(
+        self,
+    ) -> float | None:
+        return self._marker_frequency_hz
 
+    @property
+    def marker_power_db(
+        self,
+    ) -> float | None:
+        return self._marker_power_db
 
