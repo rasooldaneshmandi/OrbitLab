@@ -273,6 +273,15 @@ class PlutoSDRDevice(SDRDevice):
             self._sdr.gain_control_mode_chan0 = "manual"
             self._sdr.rx_hardwaregain_chan0 = self._manual_gain_db
 
+    # Alias expected by generic GUI/pipeline code that looks for a
+    # "set_gain"/"set_gain_db" method on the device — e.g. the gain
+    # spinbox in SDRControlWidget. Same effect as set_manual_gain().
+    def set_gain_db(
+        self,
+        gain_db: float,
+    ) -> None:
+        self.set_manual_gain(gain_db)
+
     def set_agc(
         self,
         mode: str = "slow_attack",

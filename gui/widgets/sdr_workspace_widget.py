@@ -52,6 +52,7 @@ class SDRWorkspaceWidget(QWidget):
         pipeline,
         tracker=None,
         *,
+        nominal_frequency_hz: float = 437_800_000.0,
         update_interval_ms: int = 50,
         waterfall_history_size: int = 250,
         parent: QWidget | None = None,
@@ -104,14 +105,18 @@ class SDRWorkspaceWidget(QWidget):
         # Satellite Auto-Doppler
         # ====================================================
 
-        self._satellite_tracker = Tracker(
-            "ISS"
+        # Use the SAME tracker as the rest of the app (globe, telemetry,
+        # timeline) instead of a private, never-advanced one — otherwise
+        # the Doppler correction sent to the SDR is computed from a
+        # frozen, stale satellite position.
+        self._satellite_tracker = (
+            tracker if tracker is not None else Tracker("ISS")
         )
 
         self._doppler_controller = DopplerController(
             tracker=self._satellite_tracker,
             receiver=self._pipeline,
-            nominal_frequency_hz=437_800_000.0,
+            nominal_frequency_hz=float(nominal_frequency_hz),
             enabled=True,
             tune_only_when_visible=False,
         )

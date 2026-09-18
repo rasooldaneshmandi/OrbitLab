@@ -64,6 +64,15 @@ class MainWindow(QMainWindow):
     PLUTO_URI = "ip:192.168.2.1"
     PLUTO_CENTER_FREQUENCY_HZ = 437_000_000.0
 
+    # Gain control for the Pluto RX chain:
+    #   "slow_attack" / "fast_attack" / "hybrid" -> automatic gain control
+    #   "manual"                                  -> fixed gain (PLUTO_MANUAL_GAIN_DB)
+    # AGC is the safer default for a weak, unknown satellite downlink signal.
+    # Switch to "manual" once you know roughly what signal level to expect
+    # (e.g. from a strong pass) so the gain doesn't keep hunting.
+    PLUTO_GAIN_CONTROL_MODE = "slow_attack"
+    PLUTO_MANUAL_GAIN_DB = 40.0
+
     def __init__(self):
         super().__init__()
 
@@ -99,6 +108,7 @@ class MainWindow(QMainWindow):
         self.sdr_workspace = SDRWorkspaceWidget(
             pipeline=self.sdr_pipeline,
             tracker=self.tracker,
+            nominal_frequency_hz=self.PLUTO_CENTER_FREQUENCY_HZ,
             update_interval_ms=50,
             waterfall_history_size=250,
         )
@@ -172,12 +182,15 @@ class MainWindow(QMainWindow):
                     uri=self.PLUTO_URI,
                     sample_rate_hz=self.SDR_SAMPLE_RATE_HZ,
                     center_frequency_hz=self.PLUTO_CENTER_FREQUENCY_HZ,
+                    gain_control_mode=self.PLUTO_GAIN_CONTROL_MODE,
+                    manual_gain_db=self.PLUTO_MANUAL_GAIN_DB,
                 )
                 pluto.start()
                 print(
                     f"[SDR] Connected to real PlutoSDR at {self.PLUTO_URI} "
                     f"(sample_rate={self.SDR_SAMPLE_RATE_HZ:.0f} Hz, "
-                    f"center_freq={self.PLUTO_CENTER_FREQUENCY_HZ:.0f} Hz)."
+                    f"center_freq={self.PLUTO_CENTER_FREQUENCY_HZ:.0f} Hz, "
+                    f"gain_mode={self.PLUTO_GAIN_CONTROL_MODE})."
                 )
                 return pluto
             except Exception as error:
