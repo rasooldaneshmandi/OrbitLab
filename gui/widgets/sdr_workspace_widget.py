@@ -167,6 +167,45 @@ class SDRWorkspaceWidget(QWidget):
             f"Visible={state.visible}",
         )
 
+        self._update_gain_readback()
+
+    def _update_gain_readback(self) -> None:
+        """
+        Poll the actual gain the hardware is applying right now
+        (meaningful under AGC, where the device — not the spinbox —
+        decides the value) and reflect it in the control panel.
+        """
+        device = getattr(
+            self._pipeline,
+            "device",
+            None,
+        )
+
+        current_gain_db = getattr(
+            device,
+            "current_gain_db",
+            None,
+        )
+
+        if current_gain_db is None:
+            self._control_widget.set_current_gain_db(None)
+            return
+
+        try:
+            value = current_gain_db
+            # current_gain_db may be a property (already a float) or,
+            # for other device types, a zero-arg method.
+            if callable(value):
+                value = value()
+
+            self._control_widget.set_current_gain_db(value)
+
+        except Exception as error:
+            print(
+                "[GAIN] Readback failed:",
+                error,
+            )
+
     def set_auto_doppler_enabled(
         self,
         enabled: bool,
@@ -270,6 +309,10 @@ class SDRWorkspaceWidget(QWidget):
 
         self._control_widget.gain_changed.connect(
             self._on_gain_changed
+        )
+
+        self._control_widget.gain_mode_changed.connect(
+            self._on_gain_mode_changed
         )
 
         self._control_widget.fft_size_changed.connect(
@@ -495,6 +538,17 @@ class SDRWorkspaceWidget(QWidget):
                 "set_gain_db",
             ),
             value=gain_db,
+        )
+
+    def _on_gain_mode_changed(
+        self,
+        mode: str,
+    ) -> None:
+        self._try_set_pipeline_value(
+            names=(
+                "set_gain_mode",
+            ),
+            value=mode,
         )
 
     def _on_fft_size_changed(

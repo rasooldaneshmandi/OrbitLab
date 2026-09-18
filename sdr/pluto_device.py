@@ -282,6 +282,37 @@ class PlutoSDRDevice(SDRDevice):
     ) -> None:
         self.set_manual_gain(gain_db)
 
+    def set_gain_mode(
+        self,
+        mode: str,
+    ) -> None:
+        """
+        Generic entry point used by the GUI's gain-mode dropdown.
+        mode is one of "manual", "slow_attack", "fast_attack", "hybrid".
+        """
+        if mode == "manual":
+            self.set_manual_gain(self._manual_gain_db)
+        else:
+            self.set_agc(mode)
+
+    @property
+    def current_gain_db(self) -> float | None:
+        """
+        The gain the hardware is actually applying right now.
+
+        Under AGC this is the value the AD9361 has converged to
+        (not something we set), which is exactly what you want to
+        read while calibrating; under manual gain it just reflects
+        what was set. Returns None if the device hasn't been
+        started yet.
+        """
+        if self._sdr is None:
+            return None
+
+        return float(
+            self._sdr.rx_hardwaregain_chan0
+        )
+
     def set_agc(
         self,
         mode: str = "slow_attack",

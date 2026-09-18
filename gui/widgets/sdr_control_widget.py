@@ -30,6 +30,7 @@ class SDRControlWidget(QWidget):
     center_frequency_changed = pyqtSignal(float)
     sample_rate_changed = pyqtSignal(float)
     gain_changed = pyqtSignal(float)
+    gain_mode_changed = pyqtSignal(str)
     fft_size_changed = pyqtSignal(int)
     averaging_changed = pyqtSignal(int)
     window_changed = pyqtSignal(str)
@@ -104,6 +105,24 @@ class SDRControlWidget(QWidget):
         )
         self._sample_rate_combo.setCurrentIndex(1)
 
+        self._gain_mode_combo = QComboBox()
+        self._gain_mode_combo.addItem(
+            "AGC (Slow Attack)",
+            "slow_attack",
+        )
+        self._gain_mode_combo.addItem(
+            "AGC (Fast Attack)",
+            "fast_attack",
+        )
+        self._gain_mode_combo.addItem(
+            "AGC (Hybrid)",
+            "hybrid",
+        )
+        self._gain_mode_combo.addItem(
+            "Manual",
+            "manual",
+        )
+
         self._gain_spin = QDoubleSpinBox()
         self._gain_spin.setRange(
             0.0,
@@ -113,6 +132,14 @@ class SDRControlWidget(QWidget):
         self._gain_spin.setSingleStep(1.0)
         self._gain_spin.setValue(20.0)
         self._gain_spin.setSuffix(" dB")
+        # Only meaningful in "Manual" mode — AGC modes pick the gain
+        # themselves, so the spinbox starts out disabled to match the
+        # default AGC selection above.
+        self._gain_spin.setEnabled(False)
+
+        self._current_gain_label = QLabel(
+            "Current gain: -- dB"
+        )
 
         self._fft_size_combo = QComboBox()
 
@@ -158,8 +185,16 @@ class SDRControlWidget(QWidget):
             self._sample_rate_combo,
         )
         settings_layout.addRow(
-            "Gain:",
+            "Gain mode:",
+            self._gain_mode_combo,
+        )
+        settings_layout.addRow(
+            "Manual gain:",
             self._gain_spin,
+        )
+        settings_layout.addRow(
+            "",
+            self._current_gain_label,
         )
         settings_layout.addRow(
             "FFT size:",
@@ -228,6 +263,10 @@ class SDRControlWidget(QWidget):
             self.gain_changed.emit
         )
 
+        self._gain_mode_combo.currentIndexChanged.connect(
+            self._emit_gain_mode
+        )
+
         self._fft_size_combo.currentIndexChanged.connect(
             self._emit_fft_size
         )
@@ -282,6 +321,28 @@ class SDRControlWidget(QWidget):
             fft_size
         )
 
+    def _emit_gain_mode(self) -> None:
+        mode = str(
+            self._gain_mode_combo.currentData()
+        )
+
+        # The manual-gain spinbox only does something in "manual" mode;
+        # disable it otherwise so it's clear AGC is picking the gain.
+        self._gain_spin.setEnabled(
+            mode == "manual"
+        )
+
+        self.gain_mode_changed.emit(
+            mode
+        )
+
+        if mode == "manual":
+            # Re-apply whatever gain value is already in the spinbox
+            # the moment the user switches into manual mode.
+            self.gain_changed.emit(
+                self.gain_db
+            )
+
     def set_running(
         self,
         running: bool,
@@ -333,6 +394,25 @@ class SDRControlWidget(QWidget):
                 index
             )
 
+    def set_current_gain_db(
+        self,
+        gain_db: float | None,
+    ) -> None:
+        """
+        Update the read-only "Current gain" label with the gain the
+        hardware is actually applying right now (useful under AGC,
+        where the device — not this spinbox — picks the value).
+        """
+        if gain_db is None:
+            self._current_gain_label.setText(
+                "Current gain: -- dB"
+            )
+            return
+
+        self._current_gain_label.setText(
+            f"Current gain: {float(gain_db):.1f} dB"
+        )
+
     @property
     def center_frequency_hz(self) -> float:
         return float(
@@ -349,6 +429,12 @@ class SDRControlWidget(QWidget):
     def gain_db(self) -> float:
         return float(
             self._gain_spin.value()
+        )
+
+    @property
+    def gain_mode(self) -> str:
+        return str(
+            self._gain_mode_combo.currentData()
         )
 
     @property
