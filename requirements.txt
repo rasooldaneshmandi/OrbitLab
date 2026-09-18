@@ -1,0 +1,10 @@
+PyQt6
+matplotlib
+numpy
+skyfield
+sgp4
+cartopy
+
+# Optional: only needed for the real ADALM-PLUTO backend (sdr/pluto_device.py).
+# Also requires libiio (and libad9361-iio) installed on the host.
+pyadi-iio
