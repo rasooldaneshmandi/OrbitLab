@@ -174,12 +174,19 @@ class MainWindow(QMainWindow):
                     center_frequency_hz=self.PLUTO_CENTER_FREQUENCY_HZ,
                 )
                 pluto.start()
+                print(
+                    f"[SDR] Connected to real PlutoSDR at {self.PLUTO_URI} "
+                    f"(sample_rate={self.SDR_SAMPLE_RATE_HZ:.0f} Hz, "
+                    f"center_freq={self.PLUTO_CENTER_FREQUENCY_HZ:.0f} Hz)."
+                )
                 return pluto
             except Exception as error:
                 print(
                     f"[SDR] Could not start PlutoSDR ({error}). "
                     "Falling back to SDRSimulator."
                 )
+
+        print("[SDR] Using SDRSimulator (no real hardware).")
 
         return SDRSimulator(
             sample_rate_hz=self.SDR_SAMPLE_RATE_HZ,

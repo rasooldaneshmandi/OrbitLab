@@ -21,7 +21,7 @@ class SpectrumPlot(QWidget):
 
         self.axes = self.figure.add_subplot(111)
 
-        self.axes.set_title("Simulated SDR Spectrum")
+        self.axes.set_title("SDR Spectrum")
         self.axes.set_xlabel("Baseband Frequency [kHz]")
         self.axes.set_ylabel("Relative Power [dB]")
         self.axes.grid(True)
