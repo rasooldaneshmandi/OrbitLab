@@ -60,7 +60,7 @@ class MainWindow(QMainWindow):
     # Set to True (or override via ORBITLAB_SDR_BACKEND=pluto) to use a
     # real ADALM-PLUTO instead of the built-in simulator. Falls back to
     # the simulator automatically if the Pluto cannot be reached.
-    USE_PLUTO_SDR = False
+    USE_PLUTO_SDR = True
     PLUTO_URI = "ip:192.168.2.1"
     PLUTO_CENTER_FREQUENCY_HZ = 437_000_000.0
 
